@@ -64,11 +64,8 @@ jobs:
           cd devops-config
           
           # B. 【核心 Shell 指令】用 sed 把舊的 image tag 替換成這次最新的 commit id (${{ github.sha }})
-<<<<<<< HEAD
+
           sed -i "s|image: ghcr.io/.*/devops-demo:.*|image: ghcr.io/allenlee564/devops-demo:${{ github.sha }}|" k8s/deployment.yaml
-=======
-          sed -i "s|image: ghcr.io/.*/devops-demo:.*|image: ghcr.io/allenlee564/devops-demo:${{ github.sha }}|" k8s/deployment.yaml
->>>>>>> 6ca9bac06a9259ea85c64a9e53fd45e44830a14b
           
           # C. 設定 Git 身份並推回 Config Repo
           git config user.name "github-actions"
