@@ -46,8 +46,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/4-learn/devops-demo:${{ github.sha }}
-            ghcr.io/4-learn/devops-demo:latest
+            ghcr.io/allenlee564/devops-demo:${{ github.sha }}
+            ghcr.io/allenlee564/devops-demo:latest
 
       # 3. 使用 Bash 關鍵指令更新 Config Repo
       - name: Update Config Repo
