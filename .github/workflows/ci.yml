@@ -2,10 +2,13 @@ name: CI/CD
 
 on:
   push:
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
-  test:                              # ch3 / ch4：每次 push / PR 都跑 pytest
+  # 步驟 1：測試 Job (先前章節的 Pytest)
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,23 +18,28 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -v --cov=app --cov-fail-under=70
 
-  build-and-deploy:                  # ch6：測試過了，才 build → push GHCR → 更新 config repo
-    needs: test                      # ← 測試沒過不部署
+  # 步驟 2：打包並自動部署 Job (本章核心)
+  build-and-deploy:
+    needs: test # 🔴 關鍵：測試一定要成功通過，才會執行這裏！
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    
     permissions:
       contents: read
-      packages: write                # ⭐ 推 image 到 GHCR 需要
+      packages: write # ⭐ 允許推送到 GitHub Packages (GHCR)
+
     steps:
       - uses: actions/checkout@v4
 
+      # 1. 登入到 GHCR 倉庫
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}     # ← 內建 token，免設
+          password: ${{ secrets.GITHUB_TOKEN }} # 使用內建 Token，免額外設定
 
+      # 2. Build Docker Image 並 Push
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
@@ -41,17 +49,24 @@ jobs:
             ghcr.io/4-learn/devops-demo:${{ github.sha }}
             ghcr.io/4-learn/devops-demo:latest
 
+      # 3. 使用 Bash 關鍵指令更新 Config Repo
       - name: Update Config Repo
         env:
           CONFIG_REPO_TOKEN: ${{ secrets.CONFIG_REPO_TOKEN }}
         run: |
           if [ -z "$CONFIG_REPO_TOKEN" ]; then
-            echo "::warning::CONFIG_REPO_TOKEN 未設，略過更新 Config Repo（image 已推上 GHCR）"
+            echo "::warning::CONFIG_REPO_TOKEN 未設，略過更新 Config Repo"
             exit 0
           fi
-          git clone https://x-access-token:${CONFIG_REPO_TOKEN}@github.com/allenlee564/devops-config.git
+          
+          # A. 用 Token 把你的 Config Repo clone 到本機運作
+          git clone https://x-access-token:${CONFIG_REPO_TOKEN}@github.com/4-learn/devops-config.git
           cd devops-config
-          sed -i "s|image: ghcr.io/.*/devops-demo:.*|image: ghcr.io/4-learn/devops-demo:${{ github.sha }}|" k8s/deployment.yaml
+          
+          # B. 【核心 Shell 指令】用 sed 把舊的 image tag 替換成這次最新的 commit id (${{ github.sha }})
+          sed -i "s|image: ghcr.io/.*/devops-demo:.*|image: ghcr.io/allenlee564/devops-demo:${{ github.sha }}|" k8s/deployment.yaml
+          
+          # C. 設定 Git 身份並推回 Config Repo
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add k8s/deployment.yaml
